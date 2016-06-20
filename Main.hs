@@ -3,15 +3,18 @@ module Main(main) where
 import Graphics.Gloss
 import Graphics.Gloss.Data.ViewPort
 import Graphics.Gloss.Interface.IO.Game
-import System.Random
+--import System.Random
 
 --___WINDOW DEFINITIONS___--
 width, height, offset :: Int
-width = 768 -- |tem como fazer tem função de tile = 32? --
-height = 512
+tile :: Float
+tile = 32
+width = 24 * round tile -- |tem como fazer tem função de tile = 32? --
+height = 16 * round tile
 offset = 100
-botLimit = 32 -(fromIntegral height) / 2
-rightLimit = (fromIntegral width) / 2
+
+yLimit = tile - (fromIntegral height) / 2
+xLimit = (fromIntegral width) / 2
 
 window :: Display
 window = InWindow "MLP" (width, height) (offset, offset)
@@ -27,19 +30,15 @@ type Speed = (Float, Float)
 data World = World
     { player :: Player
     , enemies :: [Enemy]
-	, box :: Box
-	, walls :: [Floor] -- |WTF --
     }
 
 possibleBox ::[Position]
 possibleBox = []
-	
+
 initialState :: World
 initialState = World
     { player = initialPlayer
     , enemies = [initialEnemy1, initialEnemy2]
-	, box = initialBox
-	, walls = floors -- |WTF--
     }
     
 --__INPUT DEFINITIONS__--
@@ -49,107 +48,97 @@ data Input = Input
     , kLeft :: Bool
     }
     
-    
 --__PLAYER DEFINITIONS__--
 data Player = Player
-    { position :: Position
-    , speed :: Speed
+    { getPos :: Position
+    , getSpd :: Speed
     , input :: Input
     }
 initialPlayer = Player
-    { position = (0, 0)
-    , speed = (0, 0)
+    { getPos = (0, 0)
+    , getSpd = (0, 0)
     , input = Input { kJump = False
-                    , kRight = False
-                    , kLeft = False}
+                       , kRight = False
+                       , kLeft = False}
     }
     
 updatePlayer :: Player -> Player
-updatePlayer player = playerAction player { position = newPos, speed = newSpd }
+updatePlayer p = playerAction p { getPos = newPos, getSpd = newSpd }
     where
-        (newPos, newSpd) = moveEntity (position player, speed player)
+        (newPos, newSpd) = moveEntity (getPos p, getSpd p)
 
 renderPlayer :: Player -> Picture
-renderPlayer player = translate x y $ color red $ rectangleSolid 32 32
+renderPlayer p = translate x y $ color red $ rectangleSolid tile tile
     where
-        (x, y) = position player
+        (x, y) = getPos p
         
 playerAction :: Player -> Player
-playerAction p = p { speed = (xS', yS') }
+playerAction p = p { getSpd = (xS', yS') }
     where
         right = kRight $ input p
         left = kLeft $ input p
-        (xS, yS) = speed p
+        (xS, yS) = getSpd p
         xS' = if xor right left
               then (if right then 5 else -5)
               else 0
-        yS' = if kJump (input p) && onGround (position p)
+        yS' = if kJump (input p) && onGround (getPos p)
               then 10
               else yS
 --__ENEMY DEFINITIONS__--
 data Enemy = Enemy
-    { positio :: Position
-    , spee :: Speed
+    { getPosE :: Position
+    , getSpdE :: Speed
     }
-initialEnemy1 = Enemy { positio = (0, 100), spee = (4, 0) }
-initialEnemy2 = Enemy { positio = (20, 110), spee = (-5, 0) }
+initialEnemy1 = Enemy { getPosE = (0, 100), getSpdE = (4, 0) }
+initialEnemy2 = Enemy { getPosE = (20, 110), getSpdE = (-5, 0) }
 
 updateEnemy :: Enemy -> Enemy
-updateEnemy e = enemyAction e { positio = newPos, spee = newSpd }
+updateEnemy e = enemyAction e { getPosE = newPos, getSpdE = newSpd }
     where
-        (newPos, newSpd) = moveEntity (positio e, spee e)
+        (newPos, newSpd) = moveEntity (getPosE e, getSpdE e)
 
 renderEnemy :: Enemy -> Picture
 renderEnemy e = translate x y $ color green $ rectangleSolid 32 32
-    where (x,y) = positio e
+    where (x,y) = getPosE e
     
 enemyAction :: Enemy -> Enemy
-enemyAction e = e { spee = spd }
+enemyAction e = e { getSpdE = spd }
     where
-        (x, y) = positio e
-        (xS, yS) = spee e
-        spd = if abs x >= rightLimit && (signum x == (signum $ fst $ spee e))
-              then (negate xS, yS)
+        (x, y) = getPosE e
+        (xS, yS) = getSpdE e
+        spd = if abs x >= xLimit && (signum x == (signum $ fst $ getSpdE e)) -- Se passou do limite e ta na direção de sair mais (temporario)
+              then (negate xS, 20)
               else (xS, yS)
+              
 --__BOX DEFINITIONS__--
 data Box = Box
-	{ popo :: Position
-	}
-initialBox = Box {popo = }
-			  
+    { popo :: Position
+    }
+initialBox = Box {popo = (0,0)}
+        
 --__FLOOR DEFINITIONS__--              
 data Floor = Floor
-	{ start, end :: Position	
-	}
+    { start :: Position
+    , end :: Position
+    }
 floors = [Floor {start = ((-12),(-8)), end = ((-1), (-8))}, Floor {start = ((-12), (-7)), end = ((-12), 7)}]
 
-renderFloor :: Floor -> Picture
-renderFloor f = translate (xs*32) (ys*31) $ color black $ rectangleSolid ((abs (xe - xs))*32) 32 -- |tá errado, n sei onde --
-	where
-		 (xs, ys) = start f
-		 (xe, ye) = end f
-			  
+renderFloor :: Picture
+renderFloor = translate 0 (yLimit-tile) $ color black $ rectangleSolid (tile*(fromIntegral width)) tile
+        
 --__ENTITY FUNCTIONS__--
 -- |Returns whether the position is at the bottom of the screen or not
 onGround :: Position -> Bool
-onGround pos = y == botLimit
+onGround pos = y == yLimit
     where (x, y) = pos
-	
-hitWall :: (Position, Floor) -> Bool
-hitWall (pos, f) = x == xs
-    where (x, y) = pos
-		 (xs, ys) = start f -- |não sei por que dá erro --
-		  
-hitAnyWall :: (Position, [Floor]) -> Bool -- |parece funcionar --
-hitAnyWall (po, lOfFloors) = foldl (||) False [hitWall po x | x <- lOfFloors]
 
-hitEntity ::(Position, Position) -> Bool
-hitEntity (p, e) = xP == xE
-	where (xP, yP) = p
-		  (xE, yE) = e
-		  
+collision :: Position -> Position -> Bool
+collision (x0, y0) (x1, y1) = x0 < x1+tile && x0+tile > x1
+                           && y0 < y1+tile && y0+tile > y1
+    
 died :: World -> Bool
-died w = foldl (||) False [hitEntity (player w) e | e <- (enemies w)]
+died w = foldl (||) False [collision playerP (getPosE e) | e <- (enemies w)]
+    where playerP = getPos $ player w
 
 -- |Changes the position and speed of an entity
 moveEntity :: (Position, Speed) -> (Position, Speed)
@@ -157,22 +146,21 @@ moveEntity (p, s) = (p', s') -- |teria que passar um world ou lista de floors pr
     where
         (x,y) = p
         (xS,yS) = s
-        p' = (x+xS, max (y+yS) botLimit) -- | só aumentaria x se não batesse em parede --
+        p' = (x+xS, max (y+yS) yLimit) -- | só aumentaria x se não batesse em parede --
         s' = (xS, if onGround p
                   then yS
                   else yS - 1)
-
     
 --__RENDER FUNCTION__--
 render :: World -> IO Picture
-render world = return $ pictures $ [renderPlayer (player world)] ++ map renderEnemy (enemies world) ++ map renderFloor floors
+render world = return $ pictures $ [renderPlayer (player world)] ++ map renderEnemy (enemies world) ++ [renderFloor]
         
 --__STEP FUNCTION__--
 update :: Float -> World -> IO World
 update seconds w = return $ if died w
-							then initialState
-							else World { player = updatePlayer (player w)
-                                  , enemies = map updateEnemy (enemies w)}
+                            then initialState
+                            else w { player = updatePlayer (player w)
+                                   , enemies = map updateEnemy (enemies w)}
 
 --__HANDLE INPUT__--
 handleInput :: Event -> World -> IO World
