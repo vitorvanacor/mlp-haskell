@@ -3,6 +3,7 @@ module Main(main) where
 import Graphics.Gloss
 import Graphics.Gloss.Data.ViewPort
 import Graphics.Gloss.Interface.IO.Game
+import System.Random
 
 --___WINDOW DEFINITIONS___--
 width, height, offset :: Int
@@ -26,13 +27,18 @@ type Speed = (Float, Float)
 data World = World
     { player :: Player
     , enemies :: [Enemy]
+	, box :: Box
 	, walls :: [Floor] -- |WTF --
     }
 
+possibleBox ::[Position]
+possibleBox = []
+	
 initialState :: World
 initialState = World
     { player = initialPlayer
     , enemies = [initialEnemy1, initialEnemy2]
+	, box = initialBox
 	, walls = floors -- |WTF--
     }
     
@@ -80,7 +86,7 @@ playerAction p = p { speed = (xS', yS') }
         yS' = if kJump (input p) && onGround (position p)
               then 10
               else yS
-
+--__ENEMY DEFINITIONS__--
 data Enemy = Enemy
     { positio :: Position
     , spee :: Speed
@@ -105,7 +111,13 @@ enemyAction e = e { spee = spd }
         spd = if abs x >= rightLimit && (signum x == (signum $ fst $ spee e))
               then (negate xS, yS)
               else (xS, yS)
-              
+--__BOX DEFINITIONS__--
+data Box = Box
+	{ popo :: Position
+	}
+initialBox = Box {popo = }
+			  
+--__FLOOR DEFINITIONS__--              
 data Floor = Floor
 	{ start, end :: Position	
 	}
@@ -131,10 +143,10 @@ hitWall (pos, f) = x == xs
 hitAnyWall :: (Position, [Floor]) -> Bool -- |parece funcionar --
 hitAnyWall (po, lOfFloors) = foldl (||) False [hitWall po x | x <- lOfFloors]
 
-hitEnemy ::(Player, Enemy) -> Bool
-hitEnemy (p, e) = xP == xE
-	where (xP, yP) = position p
-		  (xE, yE) = positio e
+hitEntity ::(Position, Position) -> Bool
+hitEntity (p, e) = xP == xE
+	where (xP, yP) = p
+		  (xE, yE) = e
 		  
 died :: World -> Bool
 died w = foldl (||) False [hitEnemy (player w) e | e <- (enemies w)]
