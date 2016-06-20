@@ -6,8 +6,8 @@ import Graphics.Gloss.Interface.IO.Game
 
 --___WINDOW DEFINITIONS___--
 width, height, offset :: Int
-width = 300
-height = 300
+width = 768 -- |tem como fazer tem função de tile = 32? --
+height = 512
 offset = 100
 botLimit = 32 -(fromIntegral height) / 2
 rightLimit = (fromIntegral width) / 2
@@ -19,19 +19,21 @@ background :: Color
 background = white
 
 --__DATA TYPES__--
-type Position = (Float, Float)
+type Position = (Float, Float) -- |tem como fazer overload pra (Int, Int)? --
 type Speed = (Float, Float)
 
 --___GAME DEFINITIONS__--
 data World = World
     { player :: Player
     , enemies :: [Enemy]
+	, walls :: [Floor] -- |WTF --
     }
 
 initialState :: World
 initialState = World
     { player = initialPlayer
     , enemies = [initialEnemy1, initialEnemy2]
+	, walls = floors -- |WTF--
     }
     
 --__INPUT DEFINITIONS__--
@@ -104,20 +106,46 @@ enemyAction e = e { spee = spd }
               then (negate xS, yS)
               else (xS, yS)
               
+data Floor = Floor
+	{ start, end :: Position	
+	}
+floors = [Floor {start = ((-12),(-8)), end = ((-1), (-8))}, Floor {start = ((-12), (-7)), end = ((-12), 7)}]
 
+renderFloor :: Floor -> Picture
+renderFloor f = translate (xs*32) (ys*31) $ color black $ rectangleSolid ((abs (xe - xs))*32) 32 -- |tá errado, n sei onde --
+	where
+		 (xs, ys) = start f
+		 (xe, ye) = end f
+			  
 --__ENTITY FUNCTIONS__--
 -- |Returns whether the position is at the bottom of the screen or not
 onGround :: Position -> Bool
 onGround pos = y == botLimit
     where (x, y) = pos
+	
+hitWall :: (Position, Floor) -> Bool
+hitWall (pos, f) = x == xs
+    where (x, y) = pos
+		 (xs, ys) = start f -- |não sei por que dá erro --
+		  
+hitAnyWall :: (Position, [Floor]) -> Bool -- |parece funcionar --
+hitAnyWall (po, lOfFloors) = foldl (||) False [hitWall po x | x <- lOfFloors]
+
+hitEnemy ::(Player, Enemy) -> Bool
+hitEnemy (p, e) = xP == xE
+	where (xP, yP) = position p
+		  (xE, yE) = positio e
+		  
+died :: World -> Bool
+died w = foldl (||) False [hitEnemy (player w) e | e <- (enemies w)]
 
 -- |Changes the position and speed of an entity
 moveEntity :: (Position, Speed) -> (Position, Speed)
-moveEntity (p, s) = (p', s')
+moveEntity (p, s) = (p', s') -- |teria que passar um world ou lista de floors pra poder testar se bate em alguma parede --
     where
         (x,y) = p
         (xS,yS) = s
-        p' = (x+xS, max (y+yS) botLimit)
+        p' = (x+xS, max (y+yS) botLimit) -- | só aumentaria x se não batesse em parede --
         s' = (xS, if onGround p
                   then yS
                   else yS - 1)
@@ -125,11 +153,13 @@ moveEntity (p, s) = (p', s')
     
 --__RENDER FUNCTION__--
 render :: World -> IO Picture
-render world = return $ pictures $ [renderPlayer (player world)] ++ map renderEnemy (enemies world)      
+render world = return $ pictures $ [renderPlayer (player world)] ++ map renderEnemy (enemies world) ++ map renderFloor floors
         
 --__STEP FUNCTION__--
 update :: Float -> World -> IO World
-update seconds w = return $ World { player = updatePlayer (player w)
+update seconds w = return $ if died w
+							then initialState
+							else World { player = updatePlayer (player w)
                                   , enemies = map updateEnemy (enemies w)}
 
 --__HANDLE INPUT__--
