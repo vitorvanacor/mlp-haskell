@@ -9,7 +9,7 @@ import Graphics.Gloss.Interface.IO.Game
 width, height, offset :: Int
 tile :: Float
 tile = 32
-width = 24 * round tile -- |tem como fazer tem função de tile = 32? --
+width = 24 * round tile
 height = 16 * round tile
 offset = 100
 
@@ -23,7 +23,7 @@ background :: Color
 background = white
 
 --__DATA TYPES__--
-type Position = (Float, Float) -- |tem como fazer overload pra (Int, Int)? --
+type Position = (Float, Float)
 type Speed = (Float, Float)
 
 --___GAME DEFINITIONS__--
@@ -58,8 +58,8 @@ initialPlayer = Player
     { getPos = (0, 0)
     , getSpd = (0, 0)
     , input = Input { kJump = False
-                       , kRight = False
-                       , kLeft = False}
+                    , kRight = False
+                    , kLeft = False}
     }
     
 updatePlayer :: Player -> Player
@@ -109,19 +109,6 @@ enemyAction e = e { getSpdE = spd }
         spd = if abs x >= xLimit && (signum x == (signum $ fst $ getSpdE e)) -- Se passou do limite e ta na direção de sair mais (temporario)
               then (negate xS, 20)
               else (xS, yS)
-              
---__BOX DEFINITIONS__--
-data Box = Box
-    { popo :: Position
-    }
-initialBox = Box {popo = (0,0)}
-        
---__FLOOR DEFINITIONS__--              
-data Floor = Floor
-    { start :: Position
-    , end :: Position
-    }
-floors = [Floor {start = ((-12),(-8)), end = ((-1), (-8))}, Floor {start = ((-12), (-7)), end = ((-12), 7)}]
 
 renderFloor :: Picture
 renderFloor = translate 0 (yLimit-tile) $ color black $ rectangleSolid (tile*(fromIntegral width)) tile
@@ -137,23 +124,26 @@ collision (x0, y0) (x1, y1) = x0 < x1+tile && x0+tile > x1
                            && y0 < y1+tile && y0+tile > y1
     
 died :: World -> Bool
-died w = foldl (||) False [collision playerP (getPosE e) | e <- (enemies w)]
+died w = foldl (||) False $ map (\x -> collision playerP x) [getPosE e | e <- (enemies w)]
     where playerP = getPos $ player w
 
 -- |Changes the position and speed of an entity
 moveEntity :: (Position, Speed) -> (Position, Speed)
-moveEntity (p, s) = (p', s') -- |teria que passar um world ou lista de floors pra poder testar se bate em alguma parede --
+moveEntity (p, s) = ((x',y'), s')
     where
         (x,y) = p
         (xS,yS) = s
-        p' = (x+xS, max (y+yS) yLimit) -- | só aumentaria x se não batesse em parede --
+        y' = (max (y+yS) yLimit)
+        x' = if abs(x+xS) > xLimit
+             then xLimit * signum(x)
+             else x+xS
         s' = (xS, if onGround p
                   then yS
                   else yS - 1)
     
 --__RENDER FUNCTION__--
 render :: World -> IO Picture
-render world = return $ pictures $ [renderPlayer (player world)] ++ map renderEnemy (enemies world) ++ [renderFloor]
+render world = return $ pictures $ [renderPlayer (player world)] ++ applyToAll renderEnemy (enemies world) ++ [renderFloor]
         
 --__STEP FUNCTION__--
 update :: Float -> World -> IO World
@@ -171,13 +161,20 @@ handleInput (EventKey (Char 'a') Up _ _) w = return $ w { player = (player w) { 
 handleInput (EventKey (Char 'd') Down _ _) w = return $ w { player = (player w) { input = (input (player w)) { kRight = True } } }
 handleInput (EventKey (Char 'd') Up _ _) w = return $ w { player = (player w) { input = (input (player w)) { kRight = False } } }
 handleInput _ w = return w
-                    
+
 fps :: Int
 fps = 60
 
+runGame = playIO window background fps
+
 main :: IO ()
-main = playIO window background fps initialState render handleInput update
+main = runGame initialState render handleInput update
 
 xor :: Bool -> Bool -> Bool
 xor True x = not x
 xor False x = x
+
+applyToAll :: (a -> b) -> [a] -> [b]
+applyToAll f [] = []
+applyToAll f (x:xs) = (f x) : (applyToAll f xs)
+
