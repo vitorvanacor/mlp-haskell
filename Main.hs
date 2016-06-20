@@ -149,7 +149,7 @@ hitEntity (p, e) = xP == xE
 		  (xE, yE) = e
 		  
 died :: World -> Bool
-died w = foldl (||) False [hitEnemy (player w) e | e <- (enemies w)]
+died w = foldl (||) False [hitEntity (player w) e | e <- (enemies w)]
 
 -- |Changes the position and speed of an entity
 moveEntity :: (Position, Speed) -> (Position, Speed)
